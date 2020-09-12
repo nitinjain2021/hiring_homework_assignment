@@ -43,15 +43,18 @@ class UserSanitizer
   require 'net/http'
   require 'json'
 
+  @@result = []
+  @@stored_keys = {}
+
   def self.process
-    @@result = []
-    @@stored_keys = {}
     create_valid_records_hash
     store_output
+  rescue DownloadError => e
+    puts e.inspect
   end
 
   def self.create_valid_records_hash
-    records.each do |record|
+    Download.json.each do |record|
       validate_and_store(record)
     end
   end
@@ -62,7 +65,7 @@ class UserSanitizer
                     more_data(record['moreData']))
     return unless user.valid?
 
-    store_record
+    store_record(user)
   end
 
   def self.store_record(user)
@@ -98,15 +101,32 @@ class UserSanitizer
   def self.more_data(data)
     data.reject { |k, _v| k == 'phone' }
   end
+end
 
-  def self.records
-    uri = URI('https://test-users-2020.herokuapp.com/api/users')
+class Download
+  URL = 'https://test-users-2020.herokuapp.com/api/users'
+  TOKEN = 'Bearer abc123'
 
+  def self.json
+    uri = URI(URL)
     Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
       request = Net::HTTP::Get.new uri
-      request['Authorization'] = 'Bearer abc123'
+      request['Authorization'] = TOKEN
       response = http.request request
-      JSON.parse(response.body)
+      case response
+      when Net::HTTPSuccess, Net::HTTPRedirection
+        JSON.parse(response.body)
+      when Net::HTTPUnauthorized
+        raise DownloadError, JSON.parse(response.body)['error']
+      else
+        raise DownloadError
+      end
     end
+  end
+end
+
+class DownloadError < StandardError
+  def initialize(msg = 'Something went wrong while fetching data from source')
+    super
   end
 end
