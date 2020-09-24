@@ -2,7 +2,7 @@
 
 User = Struct.new(:first_name, :last_name, :email, :phone, :more_data) do
   def valid?
-    first_name.length.positive? && last_name.length.positive? && (valid_email? || valid_phone?)
+    first_name.to_s.length.positive? && last_name.to_s.length.positive? && (valid_email? || valid_phone?)
   end
 
   def valid_email?
@@ -114,7 +114,7 @@ class Download
       request['Authorization'] = TOKEN
       response = http.request request
       case response
-      when Net::HTTPSuccess, Net::HTTPRedirection
+      when Net::HTTPSuccess
         JSON.parse(response.body)
       when Net::HTTPUnauthorized
         raise DownloadError, JSON.parse(response.body)['error']
@@ -128,5 +128,32 @@ end
 class DownloadError < StandardError
   def initialize(msg = 'Something went wrong while fetching data from source')
     super
+  end
+end
+
+# Few test cases for our user struct
+describe User do
+  context 'When testing the User Class validation' do
+    it 'should not be valid with a malformed email and no phone' do
+      user = User.new('Rob', 'Jason', 'invalid_email@none', '')
+      expect(user.valid?).to eq false
+    end
+
+    it 'should not be valid with no email and invalid phone' do
+      user = User.new('Rob', 'Jason', '', '123')
+      expect(user.valid?).to eq false
+    end
+
+    it 'should be valid with valid email' do
+      user = User.new('Rob', 'Jason', 'nj@gmail.com')
+      expect(user.valid?).to eq true
+    end
+  end
+
+  context 'When check formatting of object' do
+    it 'should return hash with firstName lastName email moreData' do
+      user = User.new('Rob', 'Jason', 'nj@gmail.com', '')
+      expect(user.formatted_json.keys).to contain_exactly(:firstName, :lastName, :email, :moreData)
+    end
   end
 end
